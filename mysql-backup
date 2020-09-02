@@ -1,0 +1,124 @@
+#!/usr/bin/python3 -u
+
+import datetime
+import os
+import os.path
+import time
+import subprocess
+import sys
+import uuid
+import shutil
+
+VAR_DIR = '/opt/mysql-backup/var'
+BACKUP_DIR = '/srv/mysql-backup'
+SAVE_DAYS = 7
+
+class Process(object):
+
+    def __init__(self, *args):
+        self.args = args
+        process = subprocess.Popen(args, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, cwd='/')
+        self.stdout_bytes, self.stderr_bytes = process.communicate()
+        self.stdout = self.stdout_bytes.decode(encoding="utf-8", errors="replace").strip()
+        self.stderr = self.stderr_bytes.decode(encoding="utf-8", errors="replace").strip()
+        self.returncode = process.returncode
+
+    def failed(self):
+        return self.returncode != 0
+
+    def print_info(self, message):
+        print(message + ": Process(", self.args, ") failed")
+        print("returncode:", self.returncode)
+        print("stdout:", self.stdout)
+        print("stderr:", self.stderr)
+
+class Backup(object):
+    def __init__(self, var_dir, backup_dir, save_days):
+        self.var_dir = var_dir
+        self.backup_dir = backup_dir
+        self.save_days = save_days
+        self.create_local_dir(self.var_dir)
+        self.temp_dir = os.path.join(var_dir, '.tmp.' + uuid.uuid4().hex + '.tmp')
+        self.create_local_dir(self.temp_dir)
+        now = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        self.basedir = now + "-mysqldump"
+        self.work_dir = os.path.join(self.temp_dir, self.basedir)
+        self.archive_basename = self.basedir + ".tar.xz"
+        self.archive = os.path.join(self.temp_dir, self.archive_basename)
+        self.create_local_dir(self.work_dir)
+        self.grants = os.path.join(self.work_dir, "grants.sql")
+        databases = self.databases()
+        self.slow_query_log(False)
+        for database in databases:
+            self.backup_database(database)
+        self.backup_grants()
+        self.slow_query_log(True)
+        self.compress()
+        self.destination = os.path.join(self.backup_dir, self.archive_basename)
+        shutil.move(self.archive, self.destination)
+        shutil.rmtree(self.work_dir)
+        os.rmdir(self.temp_dir)
+        if len(os.listdir(self.var_dir)) != 0:
+            print("WARNING!!! %s directory is not empty" % self.var_dir)
+        else:
+            os.rmdir(self.var_dir)
+        self.delete_old_backups()
+
+    def databases(self):
+        process = Process("/usr/bin/mysql", "--batch", "--skip-column-names", "-e", "SHOW DATABASES;")
+        if process.failed():
+            process.print_info("can't get list of databases")
+            sys.exit(1)
+        databases = list()
+        for database in process.stdout.strip().split('\n'):
+            if database in ('information_schema', 'performance_schema', 'mysql', 'sys'):
+                continue
+            databases.append(database)
+        return databases
+
+    def slow_query_log(self, mode):
+        process = Process("/usr/bin/mysql", "--batch", "-e", "SET @@global.slow_query_log=%s;" % ["OFF", "ON"][mode])
+        if process.failed():
+            process.print_info("can't set slow_query_log=%s" % mode)
+            sys.exit(1)
+
+    def backup_grants(self):
+        process = Process("/bin/bash", "-c", "/usr/bin/pt-show-grants > %s" % self.grants)
+        if process.failed():
+            process.print_info("can't save grants")
+            sys.exit(1)
+
+    def backup_database(self, database):
+        sql = os.path.join(self.work_dir, database + ".sql")
+        process = Process("/usr/bin/mysqldump", "--force", "--single-transaction", "--hex-blob", "--events", "--routines", "--triggers", "--result-file=%s" % sql, database)
+        if process.failed():
+            process.print_info("can't dump database %s" % database)
+            sys.exit(1)
+
+    def compress(self):
+        process = Process("/usr/bin/tar", "--xz", "--create", "--directory=%s" % self.temp_dir, "--file=%s" % self.archive, self.basedir)
+        if process.failed():
+            process.print_info("can't create archive %s" % self.archive)
+            sys.exit(1)
+
+    def delete_old_backups(self):
+        for entry in os.listdir(self.backup_dir):
+            filename = os.path.join(self.backup_dir, entry)
+            if not os.path.isfile(filename):
+                continue
+            mtime = os.stat(filename).st_mtime
+            now = time.mktime(datetime.datetime.now().timetuple())
+            if now - mtime > 60 * 60 * 24 * self.save_days:
+                os.remove(filename)
+
+    def create_local_dir(self, local_dir):
+        try:
+            os.makedirs(local_dir)
+        except OSError:
+            pass
+
+def main():
+    Backup(VAR_DIR, BACKUP_DIR, SAVE_DAYS)
+
+if __name__ == "__main__":
+    main()
