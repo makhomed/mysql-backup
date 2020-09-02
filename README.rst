@@ -4,11 +4,13 @@ mysql-backup
 
 MySQL backup tool
 
+
 Installation
 ------------
 
 - ``cd /opt``
 - ``git clone https://github.com/makhomed/mysql-backup.git``
+
 
 Upgrade
 -------
@@ -24,3 +26,13 @@ Usage
 
     # mkdir /srv/mysql-backup
     # /opt/mysql-backup/mysql-backup
+
+
+Automation via cron
+-------------------
+
+.. code-block:: none
+
+    # cat /etc/cron.d/mysql-backup
+    0 0 * * * root /opt/mysql-backup/mysql-backup
+
