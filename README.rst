@@ -4,6 +4,7 @@ mysql-backup
 
 MySQL backup tool
 
+Warning! This tool can be used to backup only transactional databases, like InnoDB.
 
 Installation
 ------------

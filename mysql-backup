@@ -90,7 +90,7 @@ class Backup(object):
 
     def backup_database(self, database):
         sql = os.path.join(self.work_dir, database + ".sql")
-        process = Process("/usr/bin/mysqldump", "--force", "--single-transaction", "--hex-blob", "--events", "--routines", "--triggers", "--result-file=%s" % sql, database)
+        process = Process("/usr/bin/mysqldump", "--skip-opt", "--quick", "--add-drop-table", "--create-options", "--extended-insert", "--set-charset", "--force", "--single-transaction", "--hex-blob", "--events", "--routines", "--triggers", "--result-file=%s" % sql, database)
         if process.failed():
             process.print_info("can't dump database %s" % database)
             sys.exit(1)
