@@ -1,7 +1,7 @@
 #!/usr/bin/python -u
 
 __contact__ = 'https://github.com/makhomed/mysql-backup'
-__license__ = 'GNU General Public License version 3 or later'
+__license__ = 'GNU General Public License v3.0 or later'
 __version__ = '1.0.0'
 
 import datetime
