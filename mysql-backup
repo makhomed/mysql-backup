@@ -1,124 +1,119 @@
-#!/usr/bin/python3 -u
+#!/usr/bin/python -u
+
+__contact__ = 'https://github.com/makhomed/mysql-backup'
+__license__ = 'GNU General Public License version 3 or later'
+__version__ = '1.0.0'
 
 import datetime
-import os
-import os.path
-import time
-import subprocess
-import sys
-import uuid
+import secrets
 import shutil
+import sys
+import time
+from pathlib import Path
 
-VAR_DIR = '/opt/mysql-backup/var'
-BACKUP_DIR = '/srv/mysql-backup'
-SAVE_DAYS = 7
+from invoke import run
 
-class Process(object):
 
-    def __init__(self, *args):
-        self.args = args
-        process = subprocess.Popen(args, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, cwd='/')
-        self.stdout_bytes, self.stderr_bytes = process.communicate()
-        self.stdout = self.stdout_bytes.decode(encoding="utf-8", errors="replace").strip()
-        self.stderr = self.stderr_bytes.decode(encoding="utf-8", errors="replace").strip()
-        self.returncode = process.returncode
+how_to_install_python_version_3_11 = """
+# how to install Python version 3.11
 
-    def failed(self):
-        return self.returncode != 0
+dnf install python3.11 python3.11-pip
+ln -s /usr/bin/python3.11 /usr/bin/python
+ln -s /usr/bin/pip3.11 /usr/bin/pip
+pip install invoke
+"""
+is_vaid_python_version = sys.version_info.major == 3 and sys.version_info.minor >= 11 or sys.version_info.major > 3
+if not is_vaid_python_version:
+    sys.exit(f'\nPython 3.11+ required\n\nbut used not expected Python version {sys.version_info}\n{how_to_install_python_version_3_11}')
 
-    def print_info(self, message):
-        print(message + ": Process(", self.args, ") failed")
-        print("returncode:", self.returncode)
-        print("stdout:", self.stdout)
-        print("stderr:", self.stderr)
+BACKUPS_SAVE_DAYS = 7
+SYSTEM_DUMP = '/dump'
+STORE_BACKUPS_DIR = '/srv/mysql-backup'
+is_system_dump_mountpoint = Path(SYSTEM_DUMP).is_dir() and SYSTEM_DUMP in run('findmnt -n -l -o TARGET', hide=True).stdout.strip().splitlines()
+SQL_DUMP_TEMP_DIR = f'{STORE_BACKUPS_DIR}/tmp-sql-dump-dir-tmp' if not is_system_dump_mountpoint else f'{SYSTEM_DUMP}/tmp-sql-dump-dir-tmp'
 
-class Backup(object):
-    def __init__(self, var_dir, backup_dir, save_days):
-        self.var_dir = var_dir
-        self.backup_dir = backup_dir
-        self.save_days = save_days
-        self.create_local_dir(self.var_dir)
-        self.temp_dir = os.path.join(var_dir, '.tmp.' + uuid.uuid4().hex + '.tmp')
-        self.create_local_dir(self.temp_dir)
-        now = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
-        self.basedir = now + "-mysqldump"
-        self.work_dir = os.path.join(self.temp_dir, self.basedir)
-        self.archive_basename = self.basedir + ".tar.xz"
-        self.archive = os.path.join(self.temp_dir, self.archive_basename)
-        self.create_local_dir(self.work_dir)
-        self.grants = os.path.join(self.work_dir, "grants.sql")
-        databases = self.databases()
-        self.slow_query_log(False)
-        for database in databases:
-            self.backup_database(database)
-        self.backup_grants()
-        self.slow_query_log(True)
-        self.compress()
-        self.destination = os.path.join(self.backup_dir, self.archive_basename)
-        shutil.move(self.archive, self.destination)
-        shutil.rmtree(self.work_dir)
-        os.rmdir(self.temp_dir)
-        if len(os.listdir(self.var_dir)) != 0:
-            print("WARNING!!! %s directory is not empty" % self.var_dir)
-        else:
-            os.rmdir(self.var_dir)
-        self.delete_old_backups()
 
-    def databases(self):
-        process = Process("/usr/bin/mysql", "--batch", "--skip-column-names", "-e", "SHOW DATABASES;")
-        if process.failed():
-            process.print_info("can't get list of databases")
-            sys.exit(1)
-        databases = list()
-        for database in process.stdout.strip().split('\n'):
-            if database in ('information_schema', 'performance_schema', 'mysql', 'sys'):
-                continue
-            databases.append(database)
-        return databases
+def atomic_write_text(content, filename):
+    assert isinstance(content, str)
+    assert isinstance(filename, Path)
+    tmp_filename = filename.with_name(filename.name + '.tmp.' + secrets.token_hex() + '.tmp')
+    tmp_filename.write_text(content)
+    tmp_filename.rename(filename)
 
-    def slow_query_log(self, mode):
-        process = Process("/usr/bin/mysql", "--batch", "-e", "SET @@global.slow_query_log=%s;" % ["OFF", "ON"][mode])
-        if process.failed():
-            process.print_info("can't set slow_query_log=%s" % mode)
-            sys.exit(1)
 
-    def backup_grants(self):
-        process = Process("/bin/bash", "-c", "/usr/bin/pt-show-grants > %s" % self.grants)
-        if process.failed():
-            process.print_info("can't save grants")
-            sys.exit(1)
+def databases():
+    return [database for database in run('/usr/bin/mysql --batch --skip-column-names --execute="SHOW DATABASES;"', hide=True).stdout.strip().splitlines()
+            if database not in ('information_schema', 'performance_schema', 'mysql', 'sys')]
 
-    def backup_database(self, database):
-        sql = os.path.join(self.work_dir, database + ".sql")
-        process = Process("/usr/bin/mysqldump", "--skip-opt", "--quick", "--add-drop-table", "--create-options", "--extended-insert", "--set-charset", "--force", "--single-transaction", "--hex-blob", "--events", "--routines", "--triggers", "--result-file=%s" % sql, database)
-        if process.failed():
-            process.print_info("can't dump database %s" % database)
-            sys.exit(1)
 
-    def compress(self):
-        process = Process("/usr/bin/tar", "--xz", "--create", "--directory=%s" % self.temp_dir, "--file=%s" % self.archive, self.basedir)
-        if process.failed():
-            process.print_info("can't create archive %s" % self.archive)
-            sys.exit(1)
+def disable_slow_query_log():
+    run('/usr/bin/mysql --batch --execute="SET @@global.slow_query_log=OFF;"')
 
-    def delete_old_backups(self):
-        for entry in os.listdir(self.backup_dir):
-            filename = os.path.join(self.backup_dir, entry)
-            if not os.path.isfile(filename):
-                continue
-            mtime = os.stat(filename).st_mtime
-            now = time.mktime(datetime.datetime.now().timetuple())
-            if now - mtime > 60 * 60 * 24 * self.save_days:
-                os.remove(filename)
 
-    def create_local_dir(self, local_dir):
-        try:
-            os.makedirs(local_dir)
-        except OSError:
-            pass
+def enable_slow_query_log():
+    run('/usr/bin/mysql --batch --execute="SET @@global.slow_query_log=ON;"')
+
+
+def dump_grants(grants_dump_filename):
+    atomic_write_text(run('/usr/bin/pt-show-grants', hide=True).stdout, grants_dump_filename)
+
+
+def dump_database(database, database_dump_filename):
+    options = '--opt --skip-lock-tables --single-transaction --force --hex-blob --events --routines --triggers'
+    run(f'/usr/bin/mysqldump {options} --result-file={database_dump_filename} {database}')
+
+
+def delete_old_backups(store_backups_dir, backups_save_days):
+    for entry in list(store_backups_dir.iterdir()):
+        if not entry.is_file():
+            continue
+        mtime = entry.stat().st_mtime
+        now = time.time()
+        if now - mtime > 60 * 60 * 24 * backups_save_days:
+            entry.unlink()
+
+
+def backup():
+    now = datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')
+    backups_save_days = int(BACKUPS_SAVE_DAYS)
+    store_backups_dir = Path(STORE_BACKUPS_DIR)
+    store_backups_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    sql_dump_temp_dir = Path(SQL_DUMP_TEMP_DIR)
+    sql_dump_temp_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temp_dir = sql_dump_temp_dir / f'{now}-mysqldump.tmp.{secrets.token_hex()}.tmp'
+    temp_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    dump_dir_basename = f'{now}-mysqldump'
+    work_dir = temp_dir / dump_dir_basename
+    work_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    archive_basename = f'{now}-mysqldump.tar.xz'
+    archive_filename = temp_dir / archive_basename
+
+    disable_slow_query_log()
+    grants_dump_filename = work_dir / f'{now}-grants.sql'
+    dump_grants(grants_dump_filename)
+    for database in databases():
+        now = datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')
+        database_dump_filename = work_dir / f'{now}-mysqldump-{database}.sql'
+        dump_database(database, database_dump_filename)
+    enable_slow_query_log()
+
+    run(f'/usr/bin/tar --xz --create --directory={temp_dir} --file={archive_filename} {dump_dir_basename}')
+    archive_destination_filename = store_backups_dir / archive_basename
+    shutil.move(archive_filename, archive_destination_filename)
+
+    shutil.rmtree(work_dir)
+    temp_dir.rmdir()
+    if bool(len(list(sql_dump_temp_dir.iterdir()))):
+        names = '\n'.join(sql_dump_temp_dir.iterdir())
+        print(f'\n\nWARNING!!! {sql_dump_temp_dir} directory is not empty:\n\n{names}\n\n')
+    else:
+        sql_dump_temp_dir.rmdir()
+    delete_old_backups(store_backups_dir, backups_save_days)
+
 
 def main():
-    Backup(VAR_DIR, BACKUP_DIR, SAVE_DAYS)
+    backup()
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()
