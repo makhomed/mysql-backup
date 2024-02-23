@@ -1,7 +1,7 @@
 
 # mysql-backup (version 1.0.0)
 
-This tool, mysql-backup, save backups of all MySQL databasesm located on current MySQL server to the `/srv/mysql-backup` directory.
+This tool, mysql-backup, save backups of all MySQL databases, located on current MySQL server to the `/srv/mysql-backup` directory.
 
 Backups are created of all existing atabases on current MySQL server, except four system databases: `information_schema`, `performance_schema`, `mysql`, `sys`.
 
