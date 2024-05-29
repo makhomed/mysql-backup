@@ -104,7 +104,7 @@ def backup():
     shutil.rmtree(work_dir)
     temp_dir.rmdir()
     if bool(len(list(sql_dump_temp_dir.iterdir()))):
-        names = '\n'.join(sql_dump_temp_dir.iterdir())
+        names = '\n'.join([str(entry) for entry in sql_dump_temp_dir.iterdir()])
         print(f'\n\nWARNING!!! {sql_dump_temp_dir} directory is not empty:\n\n{names}\n\n')
     else:
         sql_dump_temp_dir.rmdir()
