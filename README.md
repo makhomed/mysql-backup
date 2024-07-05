@@ -1,5 +1,5 @@
 
-# mysql-backup (version 1.0.0)
+# mysql-backup (version 1.2.4)
 
 This tool, mysql-backup, save backups of all MySQL databases, located on current MySQL server to the `/srv/mysql-backup` directory.
 
@@ -12,7 +12,7 @@ created inside directory `/dump` if directory `/dump` is exists and if directory
 Otherwise - temporary files are created in temporary subdirectory `tmp-sql-dump-dir-tmp`,
 created inside `/srv/mysql-backup` directory.
 
-`xz` compressor in single thread mode is used for compressing tar archives with all databases backups, 
+`xz` compressor in single thread mode is used for compressing tar archives with all databases backups,
 because `xz` provide 2x better compression quality and 2x smaller backup archive size, compared to `gzip`.
 
 > [!CAUTION]
@@ -30,22 +30,18 @@ because `xz` provide 2x better compression quality and 2x smaller backup archive
 ## Installation
 
 > [!IMPORTANT]
-> Python 3.11+ and [invoke](https://www.pyinvoke.org/) module required
+> Python 3.4+ and [invoke](https://www.pyinvoke.org/) module required
 ```
-dnf install python3.11 python3.11-pip ; \
-ln -s /usr/bin/python3.11 /usr/bin/python ; \
-ln -s /usr/bin/pip3.11 /usr/bin/pip ; \
-pip install invoke
-
-cd /opt ; \
-git clone https://github.com/makhomed/mysql-backup.git
+dnf -y install python3 python3-pip ; \
+python3 -m pip install --no-input --upgrade-strategy eager --upgrade invoke ; \
+cd /opt ; git clone https://github.com/makhomed/mysql-backup.git
 ```
 
 ## Upgrade
 
 ```
-cd /opt/mysql-backup ; \
-git pull
+python3 -m pip install --no-input --upgrade-strategy eager --upgrade invoke ; \
+cd /opt/mysql-backup ; git pull
 ```
 
 ## Usage

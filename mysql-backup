@@ -1,8 +1,8 @@
-#!/usr/bin/python -u
+#!/usr/bin/python3 -u
 
 __contact__ = 'https://github.com/makhomed/mysql-backup'
 __license__ = 'GNU General Public License v3.0 or later'
-__version__ = '1.0.0'
+__version__ = '1.2.4'
 
 import datetime
 import secrets
@@ -13,18 +13,6 @@ from pathlib import Path
 
 from invoke import run
 
-
-how_to_install_python_version_3_11 = """
-# how to install Python version 3.11
-
-dnf install python3.11 python3.11-pip
-ln -s /usr/bin/python3.11 /usr/bin/python
-ln -s /usr/bin/pip3.11 /usr/bin/pip
-pip install invoke
-"""
-is_vaid_python_version = sys.version_info.major == 3 and sys.version_info.minor >= 11 or sys.version_info.major > 3
-if not is_vaid_python_version:
-    sys.exit(f'\nPython 3.11+ required\n\nbut used not expected Python version {sys.version_info}\n{how_to_install_python_version_3_11}')
 
 BACKUPS_SAVE_DAYS = 7
 SYSTEM_DUMP = '/dump'
