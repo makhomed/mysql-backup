@@ -2,7 +2,7 @@
 
 __contact__ = 'https://github.com/makhomed/mysql-backup'
 __license__ = 'GNU General Public License v3.0 or later'
-__version__ = '1.2.4'
+__version__ = '1.2.5'
 
 import datetime
 import secrets
@@ -13,8 +13,12 @@ from pathlib import Path
 
 from invoke import run
 
+ZSTD_CLEVEL = 19
+
+ZSTD_NBTHREADS = 16
 
 BACKUPS_SAVE_DAYS = 7
+
 SYSTEM_DUMP = '/dump'
 STORE_BACKUPS_DIR = '/srv/mysql-backup'
 is_system_dump_mountpoint = Path(SYSTEM_DUMP).is_dir() and SYSTEM_DUMP in run('findmnt -n -l -o TARGET', hide=True).stdout.strip().splitlines()
@@ -73,7 +77,7 @@ def backup():
     dump_dir_basename = f'{now}-mysqldump'
     work_dir = temp_dir / dump_dir_basename
     work_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    archive_basename = f'{now}-mysqldump.tar.xz'
+    archive_basename = f'{now}-mysqldump.tar.zst'
     archive_filename = temp_dir / archive_basename
 
     disable_slow_query_log()
@@ -85,7 +89,8 @@ def backup():
         dump_database(database, database_dump_filename)
     enable_slow_query_log()
 
-    run(f'/usr/bin/tar --xz --create --directory={temp_dir} --file={archive_filename} {dump_dir_basename}')
+    env = { "ZSTD_CLEVEL": str(ZSTD_CLEVEL), "ZSTD_NBTHREADS": str(ZSTD_NBTHREADS) }
+    run(f'/usr/bin/tar --zstd --create --directory={temp_dir} --file={archive_filename} {dump_dir_basename}', env=env)
     archive_destination_filename = store_backups_dir / archive_basename
     shutil.move(archive_filename, archive_destination_filename)
 
