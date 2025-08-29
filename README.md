@@ -1,5 +1,5 @@
 
-# mysql-backup (version 1.2.4)
+# mysql-backup (version 1.2.5)
 
 This tool, mysql-backup, save backups of all MySQL databases, located on current MySQL server to the `/srv/mysql-backup` directory.
 
@@ -12,8 +12,8 @@ created inside directory `/dump` if directory `/dump` is exists and if directory
 Otherwise - temporary files are created in temporary subdirectory `tmp-sql-dump-dir-tmp`,
 created inside `/srv/mysql-backup` directory.
 
-`xz` compressor in single thread mode is used for compressing tar archives with all databases backups,
-because `xz` provide 2x better compression quality and 2x smaller backup archive size, compared to `gzip`.
+`zstd` in 16 threads mode and 19 compression level used for compressing tar archives with all databases backups,
+because `zstd` provide much better compression quality and smaller backup archive size, compared to `gzip`.
 
 > [!CAUTION]
 >
