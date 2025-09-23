@@ -15,7 +15,7 @@ from invoke import run
 
 ZSTD_CLEVEL = 19
 
-ZSTD_NBTHREADS = 16
+ZSTD_NBTHREADS = 32
 
 BACKUPS_SAVE_DAYS = 7
 
