@@ -52,7 +52,9 @@ def dump_grants(grants_dump_filename):
 
 def dump_database(database, database_dump_filename):
     options = '--opt --skip-lock-tables --single-transaction --force --hex-blob --events --routines --triggers'
-    run(f'/usr/bin/mysqldump {options} --result-file={database_dump_filename} {database}')
+    process = run(f'/usr/bin/mysqldump {options} --result-file={database_dump_filename} {database}', warn=True)
+    if process.exited != 0:
+        print(f'\ndatabase {database} dump failed\n\nstdout: {process.stdout}\n\nstderr: {process.stderr}\n\n')
 
 
 def delete_old_backups(store_backups_dir, backups_save_days):
