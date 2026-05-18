@@ -13,9 +13,9 @@ from pathlib import Path
 
 from invoke import run
 
-ZSTD_CLEVEL = 19
+ZSTD_CLEVEL = 15
 
-ZSTD_NBTHREADS = 16
+ZSTD_NBTHREADS = 8
 
 BACKUPS_SAVE_DAYS = 7
 
