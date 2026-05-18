@@ -1,5 +1,5 @@
 
-# mysql-backup (version 1.2.6)
+# mysql-backup (version 1.2.7)
 
 This tool, mysql-backup, save backups of all MySQL databases, located on current MySQL server to the `/srv/mysql-backup` directory.
 
