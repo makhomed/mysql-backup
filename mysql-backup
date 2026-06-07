@@ -2,7 +2,7 @@
 
 __contact__ = 'https://github.com/makhomed/mysql-backup'
 __license__ = 'GNU General Public License v3.0 or later'
-__version__ = '1.2.7'
+__version__ = '1.2.8'
 
 import datetime
 import secrets
@@ -92,7 +92,7 @@ def backup():
     enable_slow_query_log()
 
     env = { "ZSTD_CLEVEL": str(ZSTD_CLEVEL), "ZSTD_NBTHREADS": str(ZSTD_NBTHREADS) }
-    run(f'/usr/bin/tar --zstd --create --directory={temp_dir} --file={archive_filename} {dump_dir_basename}', env=env)
+    run(f'/usr/bin/tar -I zstd --create --directory={temp_dir} --file={archive_filename} {dump_dir_basename}', env=env)
     archive_destination_filename = store_backups_dir / archive_basename
     shutil.move(archive_filename, archive_destination_filename)
 
