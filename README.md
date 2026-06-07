@@ -12,7 +12,7 @@ created inside directory `/dump` if directory `/dump` is exists and if directory
 Otherwise - temporary files are created in temporary subdirectory `tmp-sql-dump-dir-tmp`,
 created inside `/srv/mysql-backup` directory.
 
-`zstd` in 16 threads mode and 19 compression level used for compressing tar archives with all databases backups,
+`zstd` in 16 threads mode and 15 compression level used for compressing tar archives with all databases backups,
 because `zstd` provide much better compression quality and smaller backup archive size, compared to `gzip`.
 
 > [!CAUTION]
@@ -36,6 +36,12 @@ dnf -y install python3 python3-pip ; \
 python3 -m pip install --no-input --upgrade-strategy eager --upgrade invoke ; \
 cd /opt ; git clone https://github.com/makhomed/mysql-backup.git
 ```
+> [!IMPORTANT]
+> zstd required
+```
+dnf -y install zstd
+```
+
 
 ## Upgrade
 
